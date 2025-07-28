@@ -110,11 +110,22 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         src_data = get_contract_info('source', contract_info)
         src_contract = src_w3.eth.contract(address=src_data['address'], abi=src_data['abi'])
 
-        # ⏱ Give time for unwraps to propagate
-        time.sleep(15)
+        time.sleep(10)  # Let unwraps propagate
 
+        # Rate-limit safe event scan
+        unwrap_events = []
         try:
-            unwrap_events = contract.events.Unwrap().get_logs(from_block=start_block, to_block=end_block)
+            batch_size = 2
+            print(f"Scanning for Unwrap events from {start_block} to {end_block} in chunks of {batch_size}")
+            for b_start in range(start_block, end_block + 1, batch_size):
+                b_end = min(b_start + batch_size - 1, end_block)
+                try:
+                    logs = contract.events.Unwrap().get_logs(from_block=b_start, to_block=b_end)
+                    unwrap_events.extend(logs)
+                except Exception as e:
+                    print(f"Failed to get logs from blocks {b_start}-{b_end}: {e}")
+                    time.sleep(5)
+
             print(f"Found {len(unwrap_events)} Unwrap events")
 
             for i, event in enumerate(unwrap_events):
@@ -151,6 +162,6 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                     time.sleep(5)
 
         except Exception as e:
-            print(f"Error processing unwrap events: {e}")
+            print(f"Error scanning unwrap events: {e}")
 
     return 1
