@@ -104,7 +104,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                 print(f"Wrap transaction confirmed in block {receipt.blockNumber}")
 
                 if i < len(deposit_events) - 1:
-                    time.sleep(5)
+                    time.sleep(12)
 
         except Exception as e:
             print(f"Error processing deposit events: {e}")
