@@ -10,7 +10,8 @@ from random import uniform
 
 def connect_to(chain):
     if chain == 'source':  # The source contract chain is avax
-        api_url = f"https://api.avax-test.network/ext/bc/C/rpc" #AVAX C-chain testnet
+        api_url = f"https://avalanche-fuji.core.chainstack.com/ext/bc/C/rpc/ff2b7d36d32d122520d449b60f182b8d"
+        #api_url = f"https://api.avax-test.network/ext/bc/C/rpc" #AVAX C-chain testnet
 
     if chain == 'destination':  # The destination contract chain is bsc
         api_url = f"https://bsc-testnet.core.chainstack.com/667b352ff087d91ed487c1049aedc664"
