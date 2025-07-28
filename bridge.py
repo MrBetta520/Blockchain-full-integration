@@ -45,7 +45,6 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         When Unwrap events are found on the destination chain, call the 'withdraw' function on the source chain
     """
     event_abi = None
-    from random import uniform
 
     # This is different from Bridge IV where chain was "avax" or "bsc"
     if chain not in ['source','destination']:
@@ -69,7 +68,10 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         dest_contract = dest_w3.eth.contract(address=dest_data['address'], abi=dest_data['abi'])
 
         try:
-            deposit_events = contract.events.Deposit().get_logs(from_block=start_block, to_block=end_block)
+            deposit_events = sorted(
+                contract.events.Deposit().get_logs(from_block=start_block, to_block=end_block),
+                key=lambda e: (e.blockNumber, e['logIndex'])
+            )
             print(f"Found {len(deposit_events)} Deposit events")
 
             for i, event in enumerate(deposit_events):
@@ -114,7 +116,6 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         src_contract = src_w3.eth.contract(address=src_data['address'], abi=src_data['abi'])
 
         time.sleep(10)
-
         unwrap_events = []
         max_retries = 5
 
@@ -123,7 +124,10 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         for b in range(start_block, end_block + 1):
             for attempt in range(max_retries):
                 try:
-                    logs = contract.events.Unwrap().get_logs(from_block=b, to_block=b)
+                    logs = sorted(
+                        contract.events.Unwrap().get_logs(from_block=b, to_block=b),
+                        key=lambda e: (e.blockNumber, e['logIndex'])
+                    )
                     unwrap_events.extend(logs)
                     print(f"✓ Got logs from block {b}")
                     break
@@ -131,7 +135,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                     print(f"Retry {attempt + 1}/{max_retries} failed for block {b}: {e}")
                     time.sleep(min(2 ** attempt + uniform(0.1, 0.5), 10))
             else:
-                print(f"❌ All retries failed for block {b}")
+                print(f"All retries failed for block {b}")
 
         print(f"Found {len(unwrap_events)} Unwrap events")
 
@@ -139,8 +143,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
             token = event.args['underlying_token']
             to = event.args['to']
             amount = event.args['amount']
-
             print(f"Processing Unwrap {i+1}: token={token}, to={to}, amount={amount}")
+
             warden_key = src_data.get('warden_key')
             warden = src_w3.eth.account.from_key(warden_key)
             nonce = src_w3.eth.get_transaction_count(warden.address)
