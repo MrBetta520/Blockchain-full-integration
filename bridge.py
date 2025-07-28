@@ -63,7 +63,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
     print(f"Scanning blocks {start_block} to {end_block} on {chain} chain")
 
     if chain == 'source':
-        time.sleep(20)
+        time.sleep(60)
         dest_w3 = connect_to('destination')
         dest_data = get_contract_info('destination', contract_info)
         dest_contract = dest_w3.eth.contract(address=dest_data['address'], abi=dest_data['abi'])
@@ -106,7 +106,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                 print(f"Wrap transaction confirmed in block {receipt.blockNumber}")
 
                 if i < len(deposit_events) - 1:
-                    time.sleep(5)
+                    time.sleep(1)
 
         except Exception as e:
             print(f"Error processing deposit events: {e}")
