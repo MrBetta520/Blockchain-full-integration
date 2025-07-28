@@ -51,6 +51,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         return 0
     
         #YOUR CODE HERE
+    time.sleep(2)
+    
     w3 = connect_to(chain)
 
     contract_data = get_contract_info(chain, contract_info)
@@ -76,6 +78,9 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         )
 
         try:
+            # Add delay before scanning
+            time.sleep(1)
+            
             deposit_events = contract.events.Deposit().get_logs(
                 from_block=start_block,
                 to_block=end_block
@@ -83,12 +88,12 @@ def scan_blocks(chain, contract_info="contract_info.json"):
 
             print(f"Found {len(deposit_events)} Deposit events")
 
-            for event in deposit_events:
+            for i, event in enumerate(deposit_events):
                 token = event.args['token']
                 recipient = event.args['recipient']
                 amount = event.args['amount']
 
-                print(f"Processing Deposit: token={token}, recipient={recipient}, amount={amount}")
+                print(f"Processing Deposit {i+1}: token={token}, recipient={recipient}, amount={amount}")
 
                 warden_key = dest_contract_data.get('warden_key')
                 if not warden_key:
@@ -98,9 +103,16 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                 warden_account = dest_w3.eth.account.from_key(warden_key)
 
                 try:
+                    # Add delay between transactions
+                    if i > 0:
+                        time.sleep(3)
+                    
                     # Get current gas price and add buffer
                     current_gas_price = dest_w3.eth.gas_price
-                    buffered_gas_price = int(current_gas_price * 1.1)  # 10% buffer
+                    buffered_gas_price = int(current_gas_price * 1.2)  # 20% buffer
+                    
+                    # Get fresh nonce
+                    nonce = dest_w3.eth.get_transaction_count(warden_account.address)
                     
                     wrap_txn = dest_contract.functions.wrap(
                         token,
@@ -108,8 +120,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                         amount
                     ).build_transaction({
                         'from': warden_account.address,
-                        'nonce': dest_w3.eth.get_transaction_count(warden_account.address),
-                        'gas': 200000,
+                        'nonce': nonce,
+                        'gas': 300000,  # Increased gas limit
                         'gasPrice': buffered_gas_price,
                     })
 
@@ -119,10 +131,11 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                     print(f"Wrap transaction sent: {tx_hash.hex()}")
                     
                     # Wait for transaction confirmation
-                    time.sleep(2)
+                    time.sleep(3)
 
                 except Exception as e:
                     print(f"Error sending wrap transaction: {e}")
+                    # Continue with next transaction even if one fails
 
         except Exception as e:
             print(f"Error scanning for Deposit events: {e}")
@@ -136,22 +149,38 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         )
 
         try:
-            # Add delay to avoid rate limiting
-            time.sleep(1)
+            # Add significant delay to avoid rate limiting
+            time.sleep(3)
             
-            unwrap_events = contract.events.Unwrap().get_logs(
-                from_block=start_block,
-                to_block=end_block
-            )
+            # Try multiple times with different block ranges to avoid rate limiting
+            unwrap_events = []
+            max_retries = 3
+            
+            for retry in range(max_retries):
+                try:
+                    if retry > 0:
+                        time.sleep(5)  # Longer delay for retries
+                    
+                    events = contract.events.Unwrap().get_logs(
+                        from_block=start_block,
+                        to_block=end_block
+                    )
+                    unwrap_events = events
+                    break
+                    
+                except Exception as retry_e:
+                    print(f"Retry {retry + 1} failed: {retry_e}")
+                    if retry == max_retries - 1:
+                        raise retry_e
 
             print(f"Found {len(unwrap_events)} Unwrap events")
 
-            for event in unwrap_events:
+            for i, event in enumerate(unwrap_events):
                 underlying_token = event.args['underlying_token']
                 to_address = event.args['to']
                 amount = event.args['amount']
 
-                print(f"Processing Unwrap: token={underlying_token}, to={to_address}, amount={amount}")
+                print(f"Processing Unwrap {i+1}: token={underlying_token}, to={to_address}, amount={amount}")
 
                 warden_key = src_contract_data.get('warden_key')
                 if not warden_key:
@@ -161,8 +190,15 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                 warden_account = src_w3.eth.account.from_key(warden_key)
 
                 try:
+                    # Add delay between transactions
+                    time.sleep(4)
+                    
+                    # Get current gas price and add buffer
                     current_gas_price = src_w3.eth.gas_price
-                    buffered_gas_price = int(current_gas_price * 1.1)
+                    buffered_gas_price = int(current_gas_price * 1.2)  # 20% buffer
+                    
+                    # Get fresh nonce
+                    nonce = src_w3.eth.get_transaction_count(warden_account.address)
                     
                     withdraw_txn = src_contract.functions.withdraw(
                         underlying_token,
@@ -170,8 +206,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                         amount
                     ).build_transaction({
                         'from': warden_account.address,
-                        'nonce': src_w3.eth.get_transaction_count(warden_account.address),
-                        'gas': 200000,
+                        'nonce': nonce,
+                        'gas': 300000,  # Increased gas limit
                         'gasPrice': buffered_gas_price,
                     })
 
@@ -181,7 +217,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                     print(f"Withdraw transaction sent: {tx_hash.hex()}")
                     
                     # Wait for transaction confirmation
-                    time.sleep(2)
+                    time.sleep(4)
 
                 except Exception as e:
                     print(f"Error sending withdraw transaction: {e}")
