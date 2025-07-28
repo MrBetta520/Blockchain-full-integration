@@ -4,6 +4,7 @@ from web3.middleware import ExtraDataToPOAMiddleware #Necessary for POA chains
 from datetime import datetime
 import json
 import pandas as pd
+import time
 
 
 def connect_to(chain):
@@ -97,6 +98,10 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                 warden_account = dest_w3.eth.account.from_key(warden_key)
 
                 try:
+                    # Get current gas price and add buffer
+                    current_gas_price = dest_w3.eth.gas_price
+                    buffered_gas_price = int(current_gas_price * 1.1)  # 10% buffer
+                    
                     wrap_txn = dest_contract.functions.wrap(
                         token,
                         recipient,
@@ -105,13 +110,16 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                         'from': warden_account.address,
                         'nonce': dest_w3.eth.get_transaction_count(warden_account.address),
                         'gas': 200000,
-                        'gasPrice': dest_w3.eth.gas_price,
+                        'gasPrice': buffered_gas_price,
                     })
 
                     signed_txn = dest_w3.eth.account.sign_transaction(wrap_txn, warden_key)
                     tx_hash = dest_w3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
                     print(f"Wrap transaction sent: {tx_hash.hex()}")
+                    
+                    # Wait for transaction confirmation
+                    time.sleep(2)
 
                 except Exception as e:
                     print(f"Error sending wrap transaction: {e}")
@@ -128,6 +136,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         )
 
         try:
+            # Add delay to avoid rate limiting
             time.sleep(1)
             
             unwrap_events = contract.events.Unwrap().get_logs(
@@ -152,7 +161,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                 warden_account = src_w3.eth.account.from_key(warden_key)
 
                 try:
-                    time.sleep(1)
+                    current_gas_price = src_w3.eth.gas_price
+                    buffered_gas_price = int(current_gas_price * 1.1)
                     
                     withdraw_txn = src_contract.functions.withdraw(
                         underlying_token,
@@ -162,13 +172,16 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                         'from': warden_account.address,
                         'nonce': src_w3.eth.get_transaction_count(warden_account.address),
                         'gas': 200000,
-                        'gasPrice': src_w3.eth.gas_price,
+                        'gasPrice': buffered_gas_price,
                     })
 
                     signed_txn = src_w3.eth.account.sign_transaction(withdraw_txn, warden_key)
                     tx_hash = src_w3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
                     print(f"Withdraw transaction sent: {tx_hash.hex()}")
+                    
+                    # Wait for transaction confirmation
+                    time.sleep(2)
 
                 except Exception as e:
                     print(f"Error sending withdraw transaction: {e}")
