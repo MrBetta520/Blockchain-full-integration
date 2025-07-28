@@ -77,8 +77,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         
         try:
             deposit_filter = contract.events.Deposit().create_filter(
-                fromBlock=start_block,
-                toBlock=end_block
+                from_block=start_block,
+                to_block=end_block
             )
             deposit_events = deposit_filter.get_all_entries()
             
@@ -131,8 +131,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         
         try:
             unwrap_filter = contract.events.Unwrap().create_filter(
-                fromBlock=start_block,
-                toBlock=end_block
+                from_block=start_block,
+                to_block=end_block
             )
             unwrap_events = unwrap_filter.get_all_entries()
             
