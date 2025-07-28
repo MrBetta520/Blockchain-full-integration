@@ -51,8 +51,6 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         return 0
     
         #YOUR CODE HERE
-    time.sleep(5)
-    
     w3 = connect_to(chain)
 
     contract_data = get_contract_info(chain, contract_info)
@@ -64,7 +62,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
     contract = w3.eth.contract(address=contract_address, abi=contract_abi)
 
     latest_block = w3.eth.get_block_number()
-    start_block = latest_block - 4
+    # Scan more blocks to catch all events
+    start_block = latest_block - 10  # Increased from 4 to 10
     end_block = latest_block
 
     print(f"Scanning blocks {start_block} to {end_block} on {chain} chain")
@@ -78,22 +77,11 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         )
 
         try:
-            # Long delay before scanning
-            time.sleep(3)
-            
-            # Try scanning block by block to avoid rate limits
-            deposit_events = []
-            for block_num in range(start_block, end_block + 1):
-                try:
-                    events = contract.events.Deposit().get_logs(
-                        from_block=block_num,
-                        to_block=block_num
-                    )
-                    deposit_events.extend(events)
-                    time.sleep(1)  # Delay between block scans
-                except Exception as block_e:
-                    print(f"Error scanning block {block_num}: {block_e}")
-                    continue
+            # Get all deposit events in one call - more efficient
+            deposit_events = contract.events.Deposit().get_logs(
+                from_block=start_block,
+                to_block=end_block
+            )
 
             print(f"Found {len(deposit_events)} Deposit events")
 
@@ -112,16 +100,20 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                 warden_account = dest_w3.eth.account.from_key(warden_key)
 
                 try:
-                    # Long delay between transactions
-                    if i > 0:
-                        time.sleep(10)
-                    
-                    # Get current gas price and add buffer
-                    current_gas_price = dest_w3.eth.gas_price
-                    buffered_gas_price = int(current_gas_price * 1.5)  # 50% buffer
-                    
-                    # Get fresh nonce
+                    # Get fresh nonce each time
                     nonce = dest_w3.eth.get_transaction_count(warden_account.address)
+                    
+                    # Use estimated gas instead of fixed amount
+                    try:
+                        gas_estimate = dest_contract.functions.wrap(
+                            token, recipient, amount
+                        ).estimate_gas({'from': warden_account.address})
+                        gas_limit = int(gas_estimate * 1.2)  # 20% buffer
+                    except:
+                        gas_limit = 200000  # Fallback
+                    
+                    # Get current gas price
+                    gas_price = dest_w3.eth.gas_price
                     
                     wrap_txn = dest_contract.functions.wrap(
                         token,
@@ -130,8 +122,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                     ).build_transaction({
                         'from': warden_account.address,
                         'nonce': nonce,
-                        'gas': 500000,  # High gas limit
-                        'gasPrice': buffered_gas_price,
+                        'gas': gas_limit,
+                        'gasPrice': gas_price,
                     })
 
                     signed_txn = dest_w3.eth.account.sign_transaction(wrap_txn, warden_key)
@@ -139,8 +131,13 @@ def scan_blocks(chain, contract_info="contract_info.json"):
 
                     print(f"Wrap transaction sent: {tx_hash.hex()}")
                     
-                    # Long wait for confirmation
-                    time.sleep(8)
+                    # Wait for transaction to be mined
+                    receipt = dest_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+                    print(f"Wrap transaction confirmed in block {receipt.blockNumber}")
+
+                    # Add delay between transactions to avoid nonce issues
+                    if i < len(deposit_events) - 1:
+                        time.sleep(5)
 
                 except Exception as e:
                     print(f"Error sending wrap transaction: {e}")
@@ -156,28 +153,50 @@ def scan_blocks(chain, contract_info="contract_info.json"):
             abi=src_contract_data['abi']
         )
 
+        # Add a longer delay before scanning destination chain to let transactions settle
+        time.sleep(10)
+
         try:
-            # Very long delay to avoid rate limiting
-            time.sleep(10)
-            
-            # Try scanning with smaller block ranges and longer delays
+            # Try multiple approaches to get events, with increasing delays
             unwrap_events = []
             
-            # Scan block by block with delays
-            for block_num in range(start_block, end_block + 1):
+            # First try: normal range scan
+            try:
+                unwrap_events = contract.events.Unwrap().get_logs(
+                    from_block=start_block,
+                    to_block=end_block
+                )
+            except Exception as first_e:
+                print(f"First attempt failed: {first_e}")
+                time.sleep(15)
+                
+                # Second try: smaller range
                 try:
-                    time.sleep(2)  # Delay before each block scan
-                    events = contract.events.Unwrap().get_logs(
-                        from_block=block_num,
-                        to_block=block_num
+                    mid_block = start_block + (end_block - start_block) // 2
+                    events1 = contract.events.Unwrap().get_logs(
+                        from_block=start_block,
+                        to_block=mid_block
                     )
-                    unwrap_events.extend(events)
+                    time.sleep(10)
+                    events2 = contract.events.Unwrap().get_logs(
+                        from_block=mid_block + 1,
+                        to_block=end_block
+                    )
+                    unwrap_events = events1 + events2
+                except Exception as second_e:
+                    print(f"Second attempt failed: {second_e}")
+                    time.sleep(20)
                     
-                except Exception as block_e:
-                    print(f"Error scanning block {block_num}: {block_e}")
-                    # Try with even longer delay on error
-                    time.sleep(5)
-                    continue
+                    # Third try: latest blocks only
+                    try:
+                        recent_start = end_block - 5
+                        unwrap_events = contract.events.Unwrap().get_logs(
+                            from_block=recent_start,
+                            to_block=end_block
+                        )
+                    except Exception as third_e:
+                        print(f"All attempts failed: {third_e}")
+                        unwrap_events = []
 
             print(f"Found {len(unwrap_events)} Unwrap events")
 
@@ -196,15 +215,20 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                 warden_account = src_w3.eth.account.from_key(warden_key)
 
                 try:
-                    # Very long delay between transactions
-                    time.sleep(15)
-                    
-                    # Get current gas price and add buffer
-                    current_gas_price = src_w3.eth.gas_price
-                    buffered_gas_price = int(current_gas_price * 1.5)  # 50% buffer
-                    
                     # Get fresh nonce
                     nonce = src_w3.eth.get_transaction_count(warden_account.address)
+                    
+                    # Use estimated gas
+                    try:
+                        gas_estimate = src_contract.functions.withdraw(
+                            underlying_token, to_address, amount
+                        ).estimate_gas({'from': warden_account.address})
+                        gas_limit = int(gas_estimate * 1.2)  # 20% buffer
+                    except:
+                        gas_limit = 200000  # Fallback
+                    
+                    # Get current gas price
+                    gas_price = src_w3.eth.gas_price
                     
                     withdraw_txn = src_contract.functions.withdraw(
                         underlying_token,
@@ -213,8 +237,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                     ).build_transaction({
                         'from': warden_account.address,
                         'nonce': nonce,
-                        'gas': 500000,  # High gas limit
-                        'gasPrice': buffered_gas_price,
+                        'gas': gas_limit,
+                        'gasPrice': gas_price,
                     })
 
                     signed_txn = src_w3.eth.account.sign_transaction(withdraw_txn, warden_key)
@@ -222,8 +246,13 @@ def scan_blocks(chain, contract_info="contract_info.json"):
 
                     print(f"Withdraw transaction sent: {tx_hash.hex()}")
                     
-                    # Long wait for confirmation
-                    time.sleep(10)
+                    # Wait for transaction to be mined
+                    receipt = src_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+                    print(f"Withdraw transaction confirmed in block {receipt.blockNumber}")
+
+                    # Add delay between transactions
+                    if i < len(unwrap_events) - 1:
+                        time.sleep(5)
 
                 except Exception as e:
                     print(f"Error sending withdraw transaction: {e}")
