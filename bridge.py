@@ -116,7 +116,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         src_data = get_contract_info('source', contract_info)
         src_contract = src_w3.eth.contract(address=src_data['address'], abi=src_data['abi'])
 
-        time.sleep(10)
+        time.sleep(30)
 
         unwrap_events = []
         max_retries = 5
@@ -172,7 +172,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
             print(f"Withdraw confirmed in block {receipt.blockNumber}")
 
             if i < len(unwrap_events) - 1:
-                time.sleep(5)
+                time.sleep(2)
 
     return 1
 
