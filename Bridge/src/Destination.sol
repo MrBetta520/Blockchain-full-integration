@@ -35,10 +35,13 @@ contract Destination is AccessControl {
 	function unwrap(address _wrapped_token, address _recipient, uint256 _amount ) public {
 		//YOUR CODE HERE
     require(BridgeToken(_wrapped_token).balanceOf(msg.sender) >= _amount, "Insufficient balance");
-		address underlying_token_address = underlying_tokens[_wrapped_token];
-		require(underlying_token_address != address(0), "Invalid wrapped token");
-		BridgeToken(_wrapped_token).burnFrom(msg.sender, _amount);
-		emit Unwrap(underlying_token_address, _wrapped_token, msg.sender, _recipient, _amount);
+
+    address underlying_token = underlying_tokens[_wrapped_token];
+    require(underlying_token != address(0), "Invalid wrapped token");
+
+    BridgeToken(_wrapped_token).burn(_amount);
+
+    emit Unwrap(underlying_token, _wrapped_token, msg.sender, _recipient, _amount);
 	}
 
 	function createToken(address _underlying_token, string memory name, string memory symbol ) public onlyRole(CREATOR_ROLE) returns(address) {
