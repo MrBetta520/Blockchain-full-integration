@@ -71,7 +71,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         try:
             deposit_events = sorted(
                 contract.events.Deposit().get_logs(from_block=start_block, to_block=end_block),
-                key=lambda e: (e.blockNumber, e['logIndex'])
+                key=lambda e: (e.blockNumber, e.logIndex)
             )
             print(f"Found {len(deposit_events)} Deposit events")
 
