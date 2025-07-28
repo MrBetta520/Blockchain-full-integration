@@ -68,19 +68,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         dest_contract = dest_w3.eth.contract(address=dest_data['address'], abi=dest_data['abi'])
 
         try:
-            deposit_events = []
-            for b in range(start_block, end_block + 1):
-                for attempt in range(5):
-                    try:
-                        logs = contract.events.Deposit().get_logs(from_block=b, to_block=b)
-                        deposit_events.extend(logs)
-                        break
-                    except Exception as e:
-                        print(f"Retry {attempt+1}/5 failed on block {b}: {e}")
-                        time.sleep(min(2 ** attempt + uniform(0.1, 0.5), 10))
-                else:
-                    print(f"❌ All retries failed for block {b}")
-
+            deposit_events = contract.events.Deposit().get_logs(from_block=start_block, to_block=end_block)
             print(f"Found {len(deposit_events)} Deposit events")
 
             for i, event in enumerate(deposit_events):
@@ -127,25 +115,22 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         time.sleep(10)
 
         unwrap_events = []
-        batch_size = 5
         max_retries = 5
 
-        print(f"Scanning for Unwrap events from {start_block} to {end_block} in chunks of {batch_size}")
+        print(f"Scanning for Unwrap events from {start_block} to {end_block}, one block at a time")
 
-        for b_start in range(start_block, end_block + 1, batch_size):
-            b_end = min(b_start + batch_size - 1, end_block)
-
+        for b in range(start_block, end_block + 1):
             for attempt in range(max_retries):
                 try:
-                    logs = contract.events.Unwrap().get_logs(from_block=b_start, to_block=b_end)
+                    logs = contract.events.Unwrap().get_logs(from_block=b, to_block=b)
                     unwrap_events.extend(logs)
-                    print(f"✓ Got logs from blocks {b_start}-{b_end}")
+                    print(f"✓ Got logs from block {b}")
                     break
                 except Exception as e:
-                    print(f"Retry {attempt + 1}/{max_retries} failed for blocks {b_start}-{b_end}: {e}")
+                    print(f"Retry {attempt + 1}/{max_retries} failed for block {b}: {e}")
                     time.sleep(min(2 ** attempt + uniform(0.1, 0.5), 10))
             else:
-                print(f"❌ All retries failed for blocks {b_start}-{b_end}")
+                print(f"❌ All retries failed for block {b}")
 
         print(f"Found {len(unwrap_events)} Unwrap events")
 
