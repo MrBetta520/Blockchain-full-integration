@@ -131,13 +131,13 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                         key=lambda e: (e.blockNumber, e['logIndex'])
                     )
                     unwrap_events.extend(logs)
-                    print(f"✓ Got logs from block {b}")
+                    print(f"Got logs from block {b}")
                     break
                 except Exception as e:
                     print(f"Retry {attempt + 1}/{max_retries} failed for block {b}: {e}")
                     time.sleep(min(2 ** attempt + uniform(0.1, 0.5), 10))
             else:
-                print(f"❌ All retries failed for block {b}")
+                print(f"All retries failed for block {b}")
 
         print(f"Found {len(unwrap_events)} Unwrap events")
 
