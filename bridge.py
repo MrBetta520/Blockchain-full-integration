@@ -128,6 +128,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         )
 
         try:
+            time.sleep(1)
+            
             unwrap_events = contract.events.Unwrap().get_logs(
                 from_block=start_block,
                 to_block=end_block
@@ -150,6 +152,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                 warden_account = src_w3.eth.account.from_key(warden_key)
 
                 try:
+                    time.sleep(1)
+                    
                     withdraw_txn = src_contract.functions.withdraw(
                         underlying_token,
                         to_address,
