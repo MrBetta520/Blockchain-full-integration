@@ -55,53 +55,51 @@ def scan_blocks(chain, contract_info="contract_info.json"):
     contract_data = get_contract_info(chain, contract_info)
     if not contract_data:
         return 0
-    
+
     contract_address = contract_data['address']
     contract_abi = contract_data['abi']
-    
     contract = w3.eth.contract(address=contract_address, abi=contract_abi)
-    
+
     latest_block = w3.eth.get_block_number()
     start_block = latest_block - 4
     end_block = latest_block
-    
+
     print(f"Scanning blocks {start_block} to {end_block} on {chain} chain")
 
     if chain == 'source':
         dest_w3 = connect_to('destination')
         dest_contract_data = get_contract_info('destination', contract_info)
         dest_contract = dest_w3.eth.contract(
-            address=dest_contract_data['address'], 
+            address=dest_contract_data['address'],
             abi=dest_contract_data['abi']
         )
-        
+
         try:
-            deposit_filter = contract.events.Deposit().get_logs(
+            deposit_events = contract.events.Deposit().get_logs(
                 from_block=start_block,
                 to_block=end_block
             )
-            deposit_events = deposit_filter.get_all_entries()
-            
+
             print(f"Found {len(deposit_events)} Deposit events")
-            
+
             for event in deposit_events:
                 token = event.args['token']
                 recipient = event.args['recipient']
                 amount = event.args['amount']
-                
+
                 print(f"Processing Deposit: token={token}, recipient={recipient}, amount={amount}")
-                
+
                 warden_key = dest_contract_data.get('warden_key')
                 if not warden_key:
                     print("Error: No warden key found in destination contract info")
                     continue
-                
+
                 warden_account = dest_w3.eth.account.from_key(warden_key)
-                
+
                 try:
                     wrap_txn = dest_contract.functions.wrap(
                         token,
-                        recipient, 
+                        recipient,
                         amount
                     ).build_transaction({
                         'from': warden_account.address,
@@ -109,18 +107,18 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                         'gas': 200000,
                         'gasPrice': dest_w3.eth.gas_price,
                     })
-                    
+
                     signed_txn = dest_w3.eth.account.sign_transaction(wrap_txn, warden_key)
                     tx_hash = dest_w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                    
+
                     print(f"Wrap transaction sent: {tx_hash.hex()}")
-                    
+
                 except Exception as e:
                     print(f"Error sending wrap transaction: {e}")
-                    
+
         except Exception as e:
             print(f"Error scanning for Deposit events: {e}")
-            
+
     elif chain == 'destination':
         src_w3 = connect_to('source')
         src_contract_data = get_contract_info('source', contract_info)
@@ -128,30 +126,29 @@ def scan_blocks(chain, contract_info="contract_info.json"):
             address=src_contract_data['address'],
             abi=src_contract_data['abi']
         )
-        
+
         try:
-            unwrap_filter = contract.events.Unwrap().get_logs(
+            unwrap_events = contract.events.Unwrap().get_logs(
                 from_block=start_block,
                 to_block=end_block
             )
-            unwrap_events = unwrap_filter.get_all_entries()
-            
+
             print(f"Found {len(unwrap_events)} Unwrap events")
-            
+
             for event in unwrap_events:
                 underlying_token = event.args['underlying_token']
                 to_address = event.args['to']
                 amount = event.args['amount']
-                
+
                 print(f"Processing Unwrap: token={underlying_token}, to={to_address}, amount={amount}")
-                
+
                 warden_key = src_contract_data.get('warden_key')
                 if not warden_key:
                     print("Error: No warden key found in source contract info")
                     continue
-                
+
                 warden_account = src_w3.eth.account.from_key(warden_key)
-                
+
                 try:
                     withdraw_txn = src_contract.functions.withdraw(
                         underlying_token,
@@ -163,16 +160,16 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                         'gas': 200000,
                         'gasPrice': src_w3.eth.gas_price,
                     })
-                    
+
                     signed_txn = src_w3.eth.account.sign_transaction(withdraw_txn, warden_key)
                     tx_hash = src_w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                    
+
                     print(f"Withdraw transaction sent: {tx_hash.hex()}")
-                    
+
                 except Exception as e:
                     print(f"Error sending withdraw transaction: {e}")
-                    
+
         except Exception as e:
             print(f"Error scanning for Unwrap events: {e}")
-    
+
     return 1
