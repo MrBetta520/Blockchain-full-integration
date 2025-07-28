@@ -30,9 +30,9 @@ contract Source is AccessControl {
 
 	function withdraw(address _token, address _recipient, uint256 _amount ) onlyRole(WARDEN_ROLE) public {
 		//YOUR CODE HERE
-    require(BridgeToken(token).balanceOf(address(this)) >= amount, "Insufficient balance");
-    BridgeToken(token).transfer(recipient, amount);
-    emit Withdrawal(token, recipient, amount);
+    require(ERC20(_token).balanceOf(address(this)) >= _amount, "Insufficient balance");
+    ERC20(_token).transfer(_recipient, _amount);
+    emit Withdrawal(_token, _recipient, _amount);
 	}
 
 	function registerToken(address _token) onlyRole(ADMIN_ROLE) public {
