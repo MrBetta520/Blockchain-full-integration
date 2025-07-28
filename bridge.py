@@ -44,7 +44,6 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         When Deposit events are found on the source chain, call the 'wrap' function the destination chain
         When Unwrap events are found on the destination chain, call the 'withdraw' function on the source chain
     """
-    event_abi = None
 
     # This is different from Bridge IV where chain was "avax" or "bsc"
     if chain not in ['source','destination']:
@@ -116,6 +115,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         src_contract = src_w3.eth.contract(address=src_data['address'], abi=src_data['abi'])
 
         time.sleep(10)
+
         unwrap_events = []
         max_retries = 5
 
@@ -135,7 +135,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                     print(f"Retry {attempt + 1}/{max_retries} failed for block {b}: {e}")
                     time.sleep(min(2 ** attempt + uniform(0.1, 0.5), 10))
             else:
-                print(f"All retries failed for block {b}")
+                print(f"❌ All retries failed for block {b}")
 
         print(f"Found {len(unwrap_events)} Unwrap events")
 
@@ -143,8 +143,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
             token = event.args['underlying_token']
             to = event.args['to']
             amount = event.args['amount']
-            print(f"Processing Unwrap {i+1}: token={token}, to={to}, amount={amount}")
 
+            print(f"Processing Unwrap {i+1}: token={token}, to={to}, amount={amount}")
             warden_key = src_data.get('warden_key')
             warden = src_w3.eth.account.from_key(warden_key)
             nonce = src_w3.eth.get_transaction_count(warden.address)
