@@ -62,6 +62,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
     print(f"Scanning blocks {start_block} to {end_block} on {chain} chain")
 
     if chain == 'source':
+        time.sleep(5)
         dest_w3 = connect_to('destination')
         dest_data = get_contract_info('destination', contract_info)
         dest_contract = dest_w3.eth.contract(address=dest_data['address'], abi=dest_data['abi'])
