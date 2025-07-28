@@ -111,7 +111,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                     })
                     
                     signed_txn = dest_w3.eth.account.sign_transaction(wrap_txn, warden_key)
-                    tx_hash = dest_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    tx_hash = dest_w3.eth.send_raw_transaction(signed_txn.raw_transaction)
                     
                     print(f"Wrap transaction sent: {tx_hash.hex()}")
                     
@@ -165,7 +165,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                     })
                     
                     signed_txn = src_w3.eth.account.sign_transaction(withdraw_txn, warden_key)
-                    tx_hash = src_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    tx_hash = src_w3.eth.send_raw_transaction(signed_txn.raw_transaction)
                     
                     print(f"Withdraw transaction sent: {tx_hash.hex()}")
                     
