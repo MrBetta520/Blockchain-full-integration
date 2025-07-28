@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import pandas as pd
 import time
+from random import uniform
 
 
 def connect_to(chain):
@@ -42,7 +43,8 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         When Deposit events are found on the source chain, call the 'wrap' function the destination chain
         When Unwrap events are found on the destination chain, call the 'withdraw' function on the source chain
     """
-    global processed_deposits, processed_unwraps
+    event_abi = None
+    from random import uniform
 
     # This is different from Bridge IV where chain was "avax" or "bsc"
     if chain not in ['source','destination']:
@@ -66,15 +68,27 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         dest_contract = dest_w3.eth.contract(address=dest_data['address'], abi=dest_data['abi'])
 
         try:
-            deposit_events = contract.events.Deposit().get_logs(from_block=start_block, to_block=end_block)
+            deposit_events = []
+            for b in range(start_block, end_block + 1):
+                for attempt in range(5):
+                    try:
+                        logs = contract.events.Deposit().get_logs(from_block=b, to_block=b)
+                        deposit_events.extend(logs)
+                        break
+                    except Exception as e:
+                        print(f"Retry {attempt+1}/5 failed on block {b}: {e}")
+                        time.sleep(min(2 ** attempt + uniform(0.1, 0.5), 10))
+                else:
+                    print(f"❌ All retries failed for block {b}")
+
             print(f"Found {len(deposit_events)} Deposit events")
 
             for i, event in enumerate(deposit_events):
                 token = event.args['token']
                 recipient = event.args['recipient']
                 amount = event.args['amount']
-
                 print(f"Processing Deposit {i+1}: token={token}, recipient={recipient}, amount={amount}")
+
                 warden_key = dest_data.get('warden_key')
                 warden = dest_w3.eth.account.from_key(warden_key)
                 nonce = dest_w3.eth.get_transaction_count(warden.address)
@@ -110,10 +124,10 @@ def scan_blocks(chain, contract_info="contract_info.json"):
         src_data = get_contract_info('source', contract_info)
         src_contract = src_w3.eth.contract(address=src_data['address'], abi=src_data['abi'])
 
-        time.sleep(10)  # Let unwraps settle
+        time.sleep(10)
 
         unwrap_events = []
-        batch_size = 2
+        batch_size = 5
         max_retries = 5
 
         print(f"Scanning for Unwrap events from {start_block} to {end_block} in chunks of {batch_size}")
@@ -129,7 +143,7 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                     break
                 except Exception as e:
                     print(f"Retry {attempt + 1}/{max_retries} failed for blocks {b_start}-{b_end}: {e}")
-                    time.sleep(2 ** attempt)
+                    time.sleep(min(2 ** attempt + uniform(0.1, 0.5), 10))
             else:
                 print(f"❌ All retries failed for blocks {b_start}-{b_end}")
 
@@ -169,3 +183,9 @@ def scan_blocks(chain, contract_info="contract_info.json"):
                 time.sleep(5)
 
     return 1
+
+if __name__ == "__main__":
+    scan_blocks("source")  
+    time.sleep(10)
+    scan_blocks("destination") 
+
